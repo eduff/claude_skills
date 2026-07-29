@@ -15,6 +15,13 @@ Look up a DOI and cross-check against the Zotero library:
 python3 <repo>/scripts/cite.py --doi 10.1001/archneurol.2010.201
 ```
 
+**Look up by PMID** (resolves to DOI via NCBI, then runs full pipeline):
+
+```bash
+python3 <repo>/scripts/cite.py --pmid 41290621
+python3 <repo>/scripts/cite.py --pmid 41290621 --full
+```
+
 Search Crossref when you only have author/year/topic:
 
 ```bash
@@ -45,6 +52,24 @@ it falls back to downloading the raw attachment via `/file`:
 - **Raw HTML** — tag-stripped directly.
 - **PDF** — extracted via `pdftotext` if `poppler-utils` is on PATH;
   otherwise reports a clear error so the user knows to install it.
+
+### When attachment text is unavailable: broader search strategy
+
+If `--full` reports **"file-local-only"** it means the attachment exists in the user's
+Zotero desktop app but has **not been synced to Zotero cloud storage** — the API cannot
+serve it. The script automatically:
+1. Tries **all attachments** on the matched item (PDFs first, then snapshots) rather than
+   stopping at the first failure.
+2. Falls back through **all duplicate library records** for the same DOI — a duplicate
+   added at a different time may have a synced attachment even when the primary does not.
+3. Tries the **Zotero local HTTP server** (`localhost:23119`) as a last resort (only works
+   when Zotero is running on the same machine).
+
+If all attempts fail, tell the user:
+> "The attachment is stored locally in your Zotero desktop app but hasn't been synced to
+> Zotero cloud. To make it accessible: in Zotero desktop, right-click the attachment →
+> 'Manage Attachments' → ensure cloud sync is on, **or** export/drag the PDF into the
+> workspace so I can read it directly."
 
 ## How to use this when drafting
 

@@ -24,6 +24,17 @@ for the Zotero cross-check; Crossref lookups work without it. Optional
 - `notebook_lighten.py` — strip all cell outputs and execution counts from
   a notebook to reduce file size and speed up remote saving.
 
+### `figutils/` — figure provenance skill
+A Claude Code skill + standalone Python library that saves matplotlib figures
+and writes a companion `.provenance` file recording the generating script path,
+timestamp, and git commit. Enables instant traceability: `cat .provenance/foo.png.provenance`
+→ generating script, no grep needed.
+
+- `figutils/SKILL.md` — skill definition: rules Claude must follow (always use
+  `save_fig`, always check `.provenance` first, never use heredoc stdin).
+- `figutils/figutils.py` — drop-in library; symlink or copy into any project's
+  `scripts/` directory. Provides `save_fig`, `read_provenance`, `provenance_path`.
+
 ### `utils/` — misc helpers
 - `tech.py` — print the largest objects in the current Python namespace by
   in-memory size (quick memory-profiling snippet).

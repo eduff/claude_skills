@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Never commit audit artefacts — they name real paths and may quote data.
+*.jsonl
+purge*.json
+purge*.md
+COMPLIANCE_AUDIT.md
+destruction-record.md
+quarantine/

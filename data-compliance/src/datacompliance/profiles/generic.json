@@ -1,0 +1,511 @@
+{
+  "name": "generic",
+  "description": "Baseline rules: numeric participant IDs, local-path leakage, credential patterns",
+  "id": {
+    "label": "id",
+    "long_label": "participant identifier",
+    "regex": "(?<![.\\d])\\b[1-9][0-9]{6}\\b(?!\\d)",
+    "min": 1000000,
+    "max": 9999999,
+    "column_names": [
+      "id",
+      "participant_id",
+      "participantid",
+      "subject_id",
+      "subjectid",
+      "patient_id",
+      "patientid",
+      "sample_id",
+      "sampleid",
+      "record_id"
+    ],
+    "column_prefixes": []
+  },
+  "positive_context": [
+    "participant",
+    "subject",
+    "patient",
+    "sample_id",
+    "record_id"
+  ],
+  "negative_context": [
+    "p=",
+    "p<",
+    "p>",
+    "p-value",
+    "pval",
+    "p_value",
+    "hr=",
+    "or=",
+    "rr=",
+    "ci=",
+    "ci_",
+    "lower=",
+    "upper=",
+    "beta=",
+    "sigma",
+    "n=",
+    "n_",
+    "rows",
+    "columns",
+    "shape",
+    "dtype",
+    "length",
+    "mean",
+    "std",
+    "sem",
+    "min",
+    "max",
+    "median",
+    "quantile",
+    "25%",
+    "50%",
+    "75%",
+    "iqr",
+    "freq",
+    "count",
+    "sum",
+    "total",
+    "coef",
+    "exp(coef)",
+    "se(coef)",
+    "log_likelihood",
+    "loglik",
+    "concordance",
+    "covariance",
+    "variance",
+    "aic",
+    "bic",
+    "n_events",
+    "n_exposed",
+    "n_obs",
+    "r-squared",
+    "r_squared",
+    "chi2",
+    "chisq",
+    "wald",
+    "version",
+    "v=",
+    "commit",
+    "sha=",
+    "ref=",
+    "tag=",
+    "rev=",
+    ".png",
+    ".jpg",
+    ".svg",
+    ".pdf",
+    ".pkl",
+    ".pickle",
+    ".csv",
+    ".tsv",
+    ".parquet",
+    ".h5",
+    ".hdf5",
+    "http://",
+    "https://",
+    "doi.org",
+    "doi:",
+    "isbn",
+    "warning",
+    "error",
+    "traceback",
+    "deprecat",
+    "matplotlib",
+    "import ",
+    "from "
+  ],
+  "skip_ext": [
+    ".7z",
+    ".a",
+    ".aae",
+    ".avi",
+    ".bmp",
+    ".bz2",
+    ".cache",
+    ".car",
+    ".deb",
+    ".dll",
+    ".dmg",
+    ".doc",
+    ".docx",
+    ".dylib",
+    ".eot",
+    ".flac",
+    ".gif",
+    ".gz",
+    ".h5",
+    ".hdf5",
+    ".heic",
+    ".heif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".kext",
+    ".lock",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".nib",
+    ".o",
+    ".odt",
+    ".otf",
+    ".pdf",
+    ".pkg",
+    ".png",
+    ".ppt",
+    ".pptx",
+    ".pyc",
+    ".pyo",
+    ".rpm",
+    ".so",
+    ".sqlite-shm",
+    ".sqlite-wal",
+    ".svg",
+    ".tar",
+    ".tgz",
+    ".tiff",
+    ".ttf",
+    ".wav",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".xcuserstate",
+    ".xls",
+    ".xlsx",
+    ".xz",
+    ".zip"
+  ],
+  "skip_dirs": [
+    ".git",
+    "__pycache__",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    ".eggs"
+  ],
+  "skip_names": [
+    ".DS_Store",
+    ".localized",
+    "Icon\r"
+  ],
+  "max_text_mb": 50,
+  "max_pkl_mb": 200,
+  "csv_sample_rows": 2000,
+  "path_patterns": [
+    {
+      "name": "unix_home_dir",
+      "regex": "/(?:home|Users)/[A-Za-z0-9_.-]+",
+      "severity": "MEDIUM",
+      "hint": "Absolute home directory \u2014 identifies the user and machine; replace with a config variable or ~"
+    },
+    {
+      "name": "mount_data_root",
+      "regex": "/(?:mnt|media|data|scratch|vol|nfs|gpfs|lustre|Volumes)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?",
+      "severity": "MEDIUM",
+      "hint": "Absolute storage mount \u2014 server-specific; replace with a DATA_ROOT config variable"
+    },
+    {
+      "name": "email_address",
+      "regex": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
+      "severity": "LOW",
+      "hint": "Email address in source \u2014 fine in headers/citations, check it is not a data subject"
+    },
+    {
+      "name": "private_key_block",
+      "regex": "-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----",
+      "severity": "HIGH",
+      "hint": "Private key material committed to the tree"
+    },
+    {
+      "name": "aws_access_key",
+      "regex": "\\bAKIA[0-9A-Z]{16}\\b",
+      "severity": "HIGH",
+      "hint": "AWS access key ID"
+    },
+    {
+      "name": "generic_api_token",
+      "regex": "(?i)\\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password)\\s*[:=]\\s*[\"']([^\"'\\s]{12,})[\"']",
+      "severity": "HIGH",
+      "hint": "Hardcoded credential \u2014 move to an environment variable"
+    },
+    {
+      "name": "ssh_host_reference",
+      "regex": "(?i)\\b(?:ssh|scp|rsync)\\s+(?:-[A-Za-z0-9]+\\s+)*[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+\\b",
+      "severity": "LOW",
+      "hint": "Hostname/user in a remote-copy command \u2014 identifies infrastructure"
+    }
+  ],
+  "path_pattern_allow": [
+    "/mnt/c/",
+    "/data/local"
+  ],
+  "sensitive_filenames": [
+    {
+      "regex": "(?i)(?:^|[._-])(?:secret|credential)s?(?:[._-]|$)",
+      "severity": "HIGH",
+      "note": "Filename indicates stored credentials"
+    },
+    {
+      "regex": "(?i)\\.(?:pem|key|p12|pfx|jks|keystore)$",
+      "severity": "HIGH",
+      "note": "Key material"
+    },
+    {
+      "regex": "^\\.netrc$",
+      "severity": "HIGH",
+      "note": ".netrc stores machine/login/password in plaintext"
+    },
+    {
+      "regex": "^(?:adc|application_default_credentials)\\.json$",
+      "severity": "HIGH",
+      "note": "Google application default credentials \u2014 may embed a service-account private key"
+    },
+    {
+      "regex": "^\\.(?:boto|pgpass|git-credentials)$",
+      "severity": "HIGH",
+      "note": "Tool config that commonly holds plaintext tokens"
+    },
+    {
+      "regex": "^credentials(\\.db)?$",
+      "severity": "HIGH",
+      "note": "Credential store"
+    },
+    {
+      "regex": "^id_(?:rsa|dsa|ecdsa|ed25519)$",
+      "severity": "HIGH",
+      "note": "SSH private key"
+    },
+    {
+      "regex": "(?i)^\\.?(?:bash|zsh|mysql|psql|python|r)_?history$",
+      "severity": "MEDIUM",
+      "note": "Shell/REPL history \u2014 commands may embed credentials or identifiers"
+    },
+    {
+      "regex": "^\\.(?:npmrc|pypirc|docker/config\\.json)$",
+      "severity": "LOW",
+      "note": "Registry config \u2014 HIGH only if it contains an auth token"
+    },
+    {
+      "regex": "^login\\.keychain(-db)?$|\\.keychain(-db)?$",
+      "severity": "HIGH",
+      "note": "macOS keychain \u2014 stored credentials"
+    }
+  ],
+  "bulk_data_ext": [
+    ".pkl",
+    ".pickle",
+    ".parquet",
+    ".feather",
+    ".csv",
+    ".tsv",
+    ".sav",
+    ".dta",
+    ".bgen",
+    ".bed",
+    ".bim",
+    ".fam",
+    ".vcf",
+    ".gen",
+    ".sample",
+    ".cram",
+    ".bam",
+    ".fastq",
+    ".h5",
+    ".hdf5"
+  ],
+  "bulk_data_mb": 5,
+  "scratch_locations": [
+    {
+      "path": "~/.claude/projects",
+      "label": "Claude Code session transcripts",
+      "note": "JSONL transcripts capture full tool output verbatim \u2014 any command that printed participant data is recorded here"
+    },
+    {
+      "path": "~/.claude/history.jsonl",
+      "label": "Claude Code prompt history",
+      "note": "User prompts, may quote data"
+    },
+    {
+      "path": "~/.claude/todos",
+      "label": "Claude Code todo state",
+      "note": "Task text may quote data"
+    },
+    {
+      "path": "~/.claude/shell-snapshots",
+      "label": "Claude Code shell snapshots",
+      "note": "Captured shell environment"
+    },
+    {
+      "path": "~/.claude.json",
+      "label": "Claude Code config + project history",
+      "note": "Project paths and prompt history"
+    },
+    {
+      "path": "~/.gemini",
+      "label": "Gemini CLI state",
+      "note": "Session logs and cached context"
+    },
+    {
+      "path": "~/.config/gemini",
+      "label": "Gemini CLI config",
+      "note": "Session logs and cached context"
+    },
+    {
+      "path": "~/.cache/gemini",
+      "label": "Gemini CLI cache",
+      "note": "Cached model context"
+    },
+    {
+      "path": "~/.codeium",
+      "label": "Codeium state",
+      "note": "Indexed source and completions cache"
+    },
+    {
+      "path": "~/.cursor",
+      "label": "Cursor state",
+      "note": "Chat history and workspace index"
+    },
+    {
+      "path": "~/.continue",
+      "label": "Continue.dev state",
+      "note": "Chat history and index"
+    },
+    {
+      "path": "~/.aider.chat.history.md",
+      "label": "Aider chat history",
+      "note": "Full chat transcript including file content"
+    },
+    {
+      "path": "~/.aider.input.history",
+      "label": "Aider input history",
+      "note": "Prompt history"
+    },
+    {
+      "path": "~/.ipython/profile_default/history.sqlite",
+      "label": "IPython input history",
+      "note": "Every line typed in every IPython/Jupyter session, indefinitely"
+    },
+    {
+      "path": "~/.ipython/profile_default/db",
+      "label": "IPython autorestore store",
+      "note": "%store pickles \u2014 can hold entire DataFrames with participant IDs"
+    },
+    {
+      "path": "~/.local/share/jupyter/runtime",
+      "label": "Jupyter runtime state",
+      "note": "Kernel connection files and logs"
+    },
+    {
+      "path": "~/.jupyter",
+      "label": "Jupyter config/state",
+      "note": "Workspace state may embed output"
+    },
+    {
+      "path": "~/.python_history",
+      "label": "Python REPL history",
+      "note": "Interactive input history"
+    },
+    {
+      "path": "~/.bash_history",
+      "label": "Bash history",
+      "note": "Commands may embed IDs as arguments"
+    },
+    {
+      "path": "~/.zsh_history",
+      "label": "Zsh history",
+      "note": "Commands may embed IDs as arguments"
+    },
+    {
+      "path": "~/.Rhistory",
+      "label": "R history",
+      "note": "Interactive input history"
+    },
+    {
+      "path": "~/.RData",
+      "label": "R saved workspace",
+      "note": "Serialized R objects \u2014 can hold full data frames"
+    },
+    {
+      "path": "~/.local/share/Trash",
+      "label": "Desktop trash",
+      "note": "Deleted files still on disk and still readable"
+    },
+    {
+      "path": "/tmp",
+      "label": "System temp",
+      "note": "Scratch exports and intermediate dumps",
+      "shallow": true
+    }
+  ],
+  "checkpoint_dirs": [
+    ".ipynb_checkpoints"
+  ],
+  "vendor_dirs": [
+    "*.Rcheck",
+    "*.app",
+    "*.framework",
+    "*.photoslibrary",
+    ".DocumentRevisions-V100",
+    ".PKInstallSandboxManager",
+    ".Spotlight-V100",
+    ".TemporaryItems",
+    ".Trash",
+    ".apptainer",
+    ".cargo",
+    ".conda",
+    ".cursor*",
+    ".fseventsd",
+    ".gem",
+    ".gradle",
+    ".homebrew",
+    ".local/share/R",
+    ".m2",
+    ".mamba",
+    ".nextflow",
+    ".npm",
+    ".nvm",
+    ".nvm*",
+    ".pyenv",
+    ".rbenv",
+    ".rustup",
+    ".sdkman",
+    ".singularity",
+    ".texlive*",
+    ".venv",
+    ".vscode-remote-containers*",
+    ".vscode-server*",
+    ".yarn",
+    "Applications",
+    "Backups.backupdb",
+    "Caches",
+    "DerivedData",
+    "Developer",
+    "Library",
+    "Photos Library.photoslibrary",
+    "R",
+    "__pypackages__",
+    "anaconda3",
+    "anaconda3*",
+    "bower_components",
+    "conda-bld",
+    "conda-meta",
+    "dist-packages",
+    "envs",
+    "homebrew",
+    "mambaforge",
+    "miniconda3",
+    "miniconda3*",
+    "miniforge3",
+    "node_modules",
+    "pkgs",
+    "renv",
+    "renv/library",
+    "site-packages",
+    "texmf*",
+    "third_party",
+    "vendor",
+    "venv"
+  ]
+}

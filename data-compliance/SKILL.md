@@ -227,7 +227,7 @@ classify its hits too.
 
 ## Extending
 
-- Rules: `profiles/ukb.json` (extends `generic.json`); first match wins,
+- Rules: `src/datacompliance/profiles/ukb.json` (extends `generic.json`); first match wins,
   nothing falls through to KEEP. Data-file KEEP rules should set
   `"content_check": true`.
 - Per-project overrides: `.data-compliance.json` at the project root (merged

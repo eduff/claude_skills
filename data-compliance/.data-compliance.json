@@ -1,0 +1,26 @@
+{
+  "profile": "ukb",
+  "id": {
+    "allow_values": [
+      "1234567",
+      "1234568",
+      "1234569",
+      "5082392",
+      "3081375",
+      "1094933",
+      "1870254",
+      "6500000",
+      "5654321"
+    ]
+  },
+  "_note": [
+    "Identifier-shaped values this repository legitimately contains.",
+    "1234567 / 5082392 / 3081375 are the examples UK Biobank publish in their own",
+    "tool's regex documentation, reproduced here so the pattern can be explained and",
+    "asserted against. 1234568 and 1234569 are synthetic test fixtures. 1094933 and",
+    "6500000 is the range-boundary test value; 5654321 a notebook test fixture.",
+    "1870254 are a Stack Overflow answer URL used to illustrate a false-positive guard.",
+    "This is an allowlist of exact literals, not a way to skip files: a real",
+    "identifier appearing anywhere in this repository must still be reported."
+  ]
+}

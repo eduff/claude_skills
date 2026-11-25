@@ -1,0 +1,309 @@
+{
+  "name": "ukb",
+  "description": "UK Biobank participant identifiers (eids) and approved-platform data rules",
+  "extends": "generic",
+  "id": {
+    "label": "eid",
+    "long_label": "UK Biobank participant ID",
+    "regex": "(?<!\\d)(?<!\\.)(?<!rs)(?<!RS)(?<!Rs)(?<!rS)(10[0-9]{5}|[1-5][0-9]{6}|6[0-4][0-9]{5}|6500000)(?!\\d)",
+    "min": 1000000,
+    "max": 6500000,
+    "column_names": [
+      "eid",
+      "f.eid",
+      "feid",
+      "participant_id",
+      "participantid",
+      "iid",
+      "fid",
+      "subject_id",
+      "subjectid",
+      "sample_id",
+      "sampleid",
+      "patient_id",
+      "patientid",
+      "ukb_id",
+      "ukbid",
+      "id"
+    ],
+    "column_prefixes": [
+      "f.eid"
+    ],
+    "pattern_source": "Adopted verbatim from UK-Biobank/UKB-Git-Audit-Tool src/utilities.py regex_pattern(). Keep in sync: UKB's tool is the authoritative compliance check, and this scanner must never report clean where theirs reports a hit.",
+    "pattern_notes": [
+      "Range is 1000000-6500000: real eids do not exceed ~6.5M, so a wider ceiling only adds false positives.",
+      "(?<!rs)(?<!RS)(?<!Rs)(?<!rS) excludes SNP rsIDs, which are pervasive in genetics code.",
+      "(?<!\\.) excludes the fractional part of a float such as 0.1234567.",
+      "Deliberately no \\b anchors: \\b fails between a letter and a digit (patient5082392) and before an underscore (3081375_20215_0_0.zip), both of which are real UKB identifier forms."
+    ]
+  },
+  "positive_context": [
+    "eid",
+    "f.eid",
+    "participant_id",
+    "participant id",
+    "iid",
+    "fid",
+    "subject_id",
+    "sample_id",
+    "patient_id",
+    "feid",
+    "ukb_id",
+    "ukbid"
+  ],
+  "negative_context": [
+    "eids in outputs",
+    "eids found",
+    "potential eids",
+    "eid exposure",
+    "eid leak"
+  ],
+  "skip_ext": [
+    ".bgen",
+    ".bed",
+    ".bim",
+    ".fam",
+    ".vcf",
+    ".gen",
+    ".sample",
+    ".cram",
+    ".bam",
+    ".fastq"
+  ],
+  "sensitive_filenames": [
+    {
+      "regex": "withdraw",
+      "severity": "HIGH",
+      "note": "UKB withdrawal list \u2014 contains participant IDs of withdrawn consent; must never be shared or referenced by absolute path in shared code"
+    },
+    {
+      "regex": "^w[0-9]{5}_[0-9]{8}",
+      "severity": "HIGH",
+      "note": "UKB application-keyed file (w<app>_<date>) \u2014 application-linked participant data"
+    },
+    {
+      "regex": "ukb[0-9]{5,}\\.(enc|enc_ukb|csv|tab)$",
+      "severity": "HIGH",
+      "note": "Raw UKB bulk extract"
+    }
+  ],
+  "path_patterns": [
+    {
+      "name": "ukb_application_id",
+      "regex": "\\b(?:application|app|ukb)[ _-]?(?:id|no|number)?[ _:=-]{1,3}([0-9]{5,7})\\b",
+      "severity": "MEDIUM",
+      "hint": "UKB application number \u2014 identifies the access agreement; move to config"
+    }
+  ],
+  "classification": [
+    {
+      "name": "data_file_backup_copy",
+      "category": "individual_derived",
+      "disposition": "PURGE",
+      "name_regex": "\\.(?:pkl|pickle|parquet|feather|csv|tsv|h5|hdf5)\\.(?:bak|backup|old|orig|save|sav|copy|tmp|[0-9]+)$",
+      "reason": "Backup copy of an individual-level data file \u2014 same exposure as the original"
+    },
+    {
+      "name": "ukb_master_phenotype_frame",
+      "category": "individual_derived",
+      "disposition": "PURGE",
+      "ext": [
+        ".pkl",
+        ".pickle",
+        ".parquet",
+        ".feather",
+        ".csv"
+      ],
+      "name_regex": "^df_all(_|\\.)",
+      "reason": "Master per-participant phenotype frame that the df_core family is split from"
+    },
+    {
+      "name": "ukb_core_phenotype_frame",
+      "category": "individual_derived",
+      "disposition": "PURGE",
+      "ext": [
+        ".pkl",
+        ".pickle",
+        ".parquet",
+        ".feather"
+      ],
+      "name_regex": "^(df_core|surv_df|cognitive_tests|ICD10|illness_operations_detail|other_columns|other_for_review|zhang_supplementary)",
+      "reason": "Per-participant phenotype/survival frame keyed by eid"
+    },
+    {
+      "name": "ukb_individual_biomarkers",
+      "category": "individual_derived",
+      "disposition": "PURGE",
+      "ext": [
+        ".pkl",
+        ".pickle",
+        ".parquet"
+      ],
+      "name_regex": "^(biomarkers_|diagnoses_)",
+      "reason": "Per-participant biomarker / diagnosis values keyed by eid"
+    },
+    {
+      "name": "ukb_fitted_model_objects",
+      "category": "individual_derived",
+      "disposition": "PURGE",
+      "ext": [
+        ".pkl",
+        ".pickle"
+      ],
+      "name_regex": "^full_models",
+      "min_mb": 1,
+      "reason": "Fitted model objects can retain per-participant design matrices"
+    },
+    {
+      "name": "ukb_raw_genetics",
+      "category": "raw_data",
+      "disposition": "REVIEW",
+      "path_glob": [
+        "*/genotyping/*",
+        "*/imputed/*",
+        "*/genetics/*"
+      ],
+      "reason": "Raw genotypes \u2014 may be the institution's approved store; confirm before removing"
+    },
+    {
+      "name": "ukb_raw_phenotype",
+      "category": "raw_data",
+      "disposition": "REVIEW",
+      "path_glob": [
+        "*/phenotype/*",
+        "*/Proteomics/*",
+        "*/proteomics/*",
+        "*/bulk/*"
+      ],
+      "reason": "Raw UKB extracts \u2014 may be the institution's approved store; confirm before removing"
+    },
+    {
+      "name": "ukb_genetic_formats",
+      "category": "raw_data",
+      "disposition": "REVIEW",
+      "ext": [
+        ".bgen",
+        ".bed",
+        ".bim",
+        ".fam",
+        ".vcf",
+        ".gen",
+        ".sample",
+        ".cram",
+        ".bam",
+        ".fastq"
+      ],
+      "reason": "Individual-level genetic data format"
+    },
+    {
+      "name": "aggregate_results",
+      "category": "aggregate",
+      "disposition": "KEEP",
+      "path_glob": [
+        "*/Results/*",
+        "*/Results_*/*"
+      ],
+      "ext": [
+        ".pkl",
+        ".pickle"
+      ],
+      "max_mb": 200,
+      "reason": "Summary statistics (HRs, P-values, SEs) \u2014 kept only if the content check confirms no participant rows",
+      "content_check": true
+    },
+    {
+      "name": "figures",
+      "category": "figure",
+      "disposition": "KEEP",
+      "ext": [
+        ".png",
+        ".pdf",
+        ".svg",
+        ".jpg",
+        ".jpeg",
+        ".tiff",
+        ".eps"
+      ],
+      "reason": "Rendered figure \u2014 aggregate only"
+    },
+    {
+      "name": "code",
+      "category": "code",
+      "disposition": "KEEP",
+      "ext": [
+        ".py",
+        ".r",
+        ".rmd",
+        ".sh",
+        ".bash",
+        ".jl",
+        ".pl",
+        ".sql",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".yaml",
+        ".yml"
+      ],
+      "reason": "Analysis code"
+    },
+    {
+      "name": "notebook",
+      "category": "notebook",
+      "disposition": "REVIEW",
+      "ext": [
+        ".ipynb"
+      ],
+      "reason": "Notebook \u2014 outputs may embed participant rows; scan before keeping"
+    },
+    {
+      "name": "documentation",
+      "category": "doc",
+      "disposition": "KEEP",
+      "ext": [
+        ".md",
+        ".rst",
+        ".txt",
+        ".bib",
+        ".qmd",
+        ".tex",
+        ".docx"
+      ],
+      "content_check": true,
+      "reason": "Documentation / manuscript text"
+    },
+    {
+      "name": "large_tabular_unknown",
+      "category": "unclassified_data",
+      "disposition": "REVIEW",
+      "ext": [
+        ".pkl",
+        ".pickle",
+        ".parquet",
+        ".csv",
+        ".tsv",
+        ".feather",
+        ".h5",
+        ".hdf5",
+        ".sav",
+        ".dta"
+      ],
+      "min_mb": 5,
+      "reason": "Large tabular file matching no specific rule \u2014 scan for identifiers"
+    },
+    {
+      "name": "small_tabular_unknown",
+      "category": "unclassified_data",
+      "disposition": "REVIEW",
+      "ext": [
+        ".pkl",
+        ".pickle",
+        ".parquet",
+        ".csv",
+        ".tsv",
+        ".feather"
+      ],
+      "reason": "Small tabular file \u2014 scan for identifiers"
+    }
+  ]
+}

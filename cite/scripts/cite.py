@@ -554,6 +554,239 @@ def cmd_search(args, cfg):
     return 0
 
 
+import re as _re_top
+
+
+def zotero_find_collection_key(cfg, collection_name):
+    """Find a Zotero collection by name (case-insensitive substring match).
+    Returns the collection key (an 8-char alphanumeric ID) or None."""
+    headers = {"Zotero-API-Key": cfg["api_key"]}
+    url = f"{ZOTERO_BASE}/users/{cfg['user_id']}/collections?limit=100&format=json"
+    body, _ = http_get(url, headers=headers, timeout=30)
+    if not body:
+        return None, []
+    cols = json.loads(body)
+    exact = [c for c in cols if collection_name.lower() == c["data"]["name"].lower()]
+    substr = [c for c in cols if collection_name.lower() in c["data"]["name"].lower()]
+    match = exact[0] if exact else (substr[0] if substr else None)
+    return (match["key"] if match else None), [c["data"]["name"] for c in cols]
+
+
+def zotero_collection_items(cfg, collection_key, include_child_collections=False):
+    """Yield all top-level items in a Zotero collection, paginated."""
+    headers = {"Zotero-API-Key": cfg["api_key"]}
+    start = 0
+    limit = 100
+    endpoint = "items/top" if not include_child_collections else "items"
+    while True:
+        url = (f"{ZOTERO_BASE}/users/{cfg['user_id']}/collections/{collection_key}"
+               f"/{endpoint}?limit={limit}&start={start}&format=json")
+        body, _ = http_get(url, headers=headers, timeout=30)
+        if not body:
+            break
+        items = json.loads(body)
+        if not items:
+            break
+        for item in items:
+            yield item
+        if len(items) < limit:
+            break
+        start += limit
+
+
+def _clean_key_component(s):
+    """Strip non-ASCII chars, keep letters/digits only, lowercase."""
+    if not s:
+        return ""
+    return _re_top.sub(r"[^a-zA-Z0-9]", "", s).lower()
+
+
+def zotero_item_to_bibtex(item, key_suffix=""):
+    """Convert a Zotero JSON item to a BibTeX entry with a deterministic citekey
+    of the form <firstAuthorLower><year><firstTitleWordLower>. Returns (key, entry)."""
+    data = item.get("data", {})
+    itype = data.get("itemType", "journalArticle")
+    bib_type_map = {
+        "journalArticle":  "article",
+        "book":            "book",
+        "bookSection":     "incollection",
+        "conferencePaper": "inproceedings",
+        "thesis":          "phdthesis",
+        "preprint":        "misc",
+        "report":          "techreport",
+        "webpage":         "misc",
+        "manuscript":      "unpublished",
+    }
+    bib_type = bib_type_map.get(itype, "misc")
+    authors = [c for c in data.get("creators", [])
+               if c.get("creatorType", "author") == "author"]
+    first_fam = "anon"
+    if authors:
+        first_fam = (authors[0].get("lastName") or authors[0].get("name") or "anon")
+    date_str = data.get("date", "")
+    y = _re_top.search(r"\b(19|20)\d{2}\b", date_str)
+    year = y.group(0) if y else "nd"
+    title = data.get("title", "")
+    stopwords = {"the","a","an","of","on","and","in","to","for","by","from","with","at"}
+    first_word = next(
+        (w for w in title.split() if w[0].isalpha() and w.lower() not in stopwords),
+        "paper")
+    key = (_clean_key_component(first_fam)
+           + str(year)
+           + _clean_key_component(first_word)
+           + key_suffix)
+    author_str = " and ".join(
+        f"{a.get('lastName','')}, {a.get('firstName','')}" if "lastName" in a
+        else a.get("name", "") for a in authors
+    )
+    fields = {
+        "title":     title,
+        "author":    author_str,
+        "journal":   data.get("publicationTitle", ""),
+        "year":      year,
+        "volume":    data.get("volume", ""),
+        "number":    data.get("issue", ""),
+        "pages":     data.get("pages", ""),
+        "doi":       data.get("DOI", ""),
+        "url":       data.get("url", ""),
+    }
+    if itype in ("book", "bookSection"):
+        fields["publisher"] = data.get("publisher", "")
+        fields["booktitle"] = data.get("bookTitle", "")
+    lines = [f"@{bib_type}{{{key},"]
+    for k, v in fields.items():
+        if v:
+            v = str(v).replace("{", "\\{").replace("}", "\\}")
+            lines.append(f"  {k} = {{{v}}},")
+    lines.append("}")
+    return key, "\n".join(lines)
+
+
+def cmd_dump_bib(args, cfg):
+    """Fetch a Zotero collection via Web API and write refs.bib with
+    deterministic citekeys of the form <firstAuthorLower><year><firstTitleWordLower>.
+    Duplicate keys are disambiguated with a lowercase letter suffix."""
+    if not cfg:
+        print("Zotero config not found at ~/.config/zotero/config.json", file=sys.stderr)
+        return 1
+    ck, all_names = zotero_find_collection_key(cfg, args.collection)
+    if not ck:
+        print(f"No Zotero collection matches '{args.collection}'.", file=sys.stderr)
+        print(f"Available collections: {sorted(all_names)}", file=sys.stderr)
+        return 1
+    print(f"# Zotero collection '{args.collection}' → key {ck}", file=sys.stderr)
+    entries = []
+    seen_keys = {}
+    for item in zotero_collection_items(cfg, ck,
+                                         include_child_collections=args.include_children):
+        try:
+            key, entry = zotero_item_to_bibtex(item)
+            if key in seen_keys:
+                seen_keys[key] += 1
+                suffix = chr(ord("a") + seen_keys[key] - 1)
+                new_key = key + suffix
+                entry = entry.replace(f"{{{key},", f"{{{new_key},", 1)
+                key = new_key
+            else:
+                seen_keys[key] = 1
+            entries.append(entry)
+        except Exception as e:
+            print(f"# Skipping item {item.get('key','?')}: {e}", file=sys.stderr)
+    with open(args.output, "w") as f:
+        f.write("\n\n".join(entries) + "\n")
+    print(f"Wrote {len(entries)} entries to {args.output}", file=sys.stderr)
+    return 0
+
+
+def cmd_resolve(args, cfg):
+    """Resolve a narrative citation like 'Livingston et al. 2024' to a Zotero citekey.
+    Returns the top matches with their generated citekeys for pandoc use."""
+    if not cfg:
+        print("Zotero config not found", file=sys.stderr)
+        return 1
+    q = args.query
+    m = _re_top.search(r"([A-Z][a-zA-Z'\-]+)(?:\s+et\s+al\.?)?\s+(\d{4})", q)
+    if m:
+        author, year = m.group(1), m.group(2)
+        search_q = f"{author} {year}"
+    else:
+        search_q = q
+    headers = {"Zotero-API-Key": cfg["api_key"]}
+    # qmode=everything searches title/creators/year/tags/notes/extra — more
+    # forgiving than titleCreatorYear, which was surprisingly restrictive for
+    # multi-hundred-author papers (e.g., Bellenguez 2022 with 403 authors).
+    url = (f"{ZOTERO_BASE}/users/{cfg['user_id']}/items/top"
+           f"?q={urllib.parse.quote(search_q)}&qmode=everything"
+           f"&limit=10&format=json")
+    body, _ = http_get(url, headers=headers, timeout=20)
+    if not body:
+        print(f"No matches for '{search_q}'", file=sys.stderr)
+        return 1
+    items = json.loads(body)
+    # Client-side reranking: prefer items where (i) first-author lastName
+    # matches the parsed author, and (ii) the year matches. Break ties by
+    # ordering the requested author-year to the top.
+    if m:
+        wanted_author, wanted_year = m.group(1).lower(), m.group(2)
+        def score(item):
+            d = item["data"]
+            authors = [c for c in d.get("creators", [])
+                       if c.get("creatorType", "author") == "author"]
+            first = (authors[0].get("lastName", "") if authors else "").lower()
+            year = d.get("date", "")[:4]
+            return (
+                0 if first == wanted_author else (1 if first.startswith(wanted_author[:5]) else 2),
+                0 if year == wanted_year else 1,
+            )
+        items = sorted(items, key=score)
+    if not items:
+        print(f"# No Zotero matches for '{search_q}'")
+        return 0
+    print(f"# Matches for '{search_q}' (top {len(items)}):")
+    for item in items:
+        key, _ = zotero_item_to_bibtex(item)
+        data = item["data"]
+        authors = [c for c in data.get("creators", [])
+                   if c.get("creatorType", "author") == "author"]
+        first_auth = (authors[0].get("lastName", "?") if authors else "?")
+        year = data.get("date", "")[:4] or "nd"
+        title = data.get("title", "")[:75]
+        print(f"  [@{key}]  {first_auth} {year}  —  {title}")
+    return 0
+
+
+def cmd_verify_bib(args, cfg):
+    """Scan a markdown file for [@citekey] tokens and report which are missing
+    from the given .bib file (candidates for adding to Zotero)."""
+    with open(args.markdown) as f:
+        md_text = f.read()
+    cite_pattern = _re_top.compile(r"\[@([a-zA-Z0-9_:-]+)\]|(?<![a-zA-Z])@([a-zA-Z0-9_:-]+)")
+    md_keys = set()
+    for m in cite_pattern.finditer(md_text):
+        md_keys.add(m.group(1) or m.group(2))
+    try:
+        with open(args.bibfile) as f:
+            bib_text = f.read()
+    except FileNotFoundError:
+        print(f"bib file not found: {args.bibfile}", file=sys.stderr)
+        return 1
+    bib_keys = set(_re_top.findall(r"@\w+\{([^,\s]+)", bib_text))
+    missing = md_keys - bib_keys
+    unused = bib_keys - md_keys
+    print(f"# {len(md_keys)} citekeys in markdown; {len(bib_keys)} entries in bib")
+    if missing:
+        print(f"\n## Missing from bib ({len(missing)}) — add to Zotero:")
+        for k in sorted(missing):
+            print(f"  [@{k}]")
+    else:
+        print("\n## All markdown citekeys resolve in bib ✓")
+    if args.show_unused and unused:
+        print(f"\n## In bib but not cited in markdown ({len(unused)}):")
+        for k in sorted(unused):
+            print(f"  {k}")
+    return 0 if not missing else 2
+
+
 def main():
     p = argparse.ArgumentParser(description="Resolve DOIs + cross-check Zotero library")
     g = p.add_mutually_exclusive_group(required=True)
@@ -562,6 +795,18 @@ def main():
     g.add_argument("--search", help="Free-text search (Crossref)")
     g.add_argument("--merge-orphans", action="store_true",
                    help="Find standalone snapshot items with no parent and re-attach them")
+    g.add_argument("--dump-bib", dest="collection",
+                   help="Zotero collection name to dump to a BibTeX file (needs --output)")
+    g.add_argument("--resolve",  dest="query",
+                   help="Resolve a narrative citation like 'Livingston et al. 2024' → citekey")
+    g.add_argument("--verify-bib", dest="markdown",
+                   help="Scan a markdown file for [@key] tokens; report keys missing from --bib-file")
+    p.add_argument("--output", help="Output path for --dump-bib")
+    p.add_argument("--bib-file", dest="bibfile", help="Path to .bib file for --verify-bib")
+    p.add_argument("--include-children", action="store_true",
+                   help="With --dump-bib, include items from sub-collections")
+    p.add_argument("--show-unused", action="store_true",
+                   help="With --verify-bib, list bib entries not cited in the markdown")
     p.add_argument("--full", action="store_true", help="Include Zotero notes + PDF text")
     p.add_argument("--bib", action="store_true", help="Emit BibTeX for --doi")
     p.add_argument("--rows", type=int, default=5, help="Search result count")
@@ -579,6 +824,18 @@ def main():
         return cmd_pmid(args, cfg)
     if args.merge_orphans:
         return cmd_merge_orphans(args, cfg)
+    if args.collection:
+        if not args.output:
+            print("--dump-bib requires --output <path>", file=sys.stderr)
+            return 1
+        return cmd_dump_bib(args, cfg)
+    if args.query:
+        return cmd_resolve(args, cfg)
+    if args.markdown:
+        if not args.bibfile:
+            print("--verify-bib requires --bib-file <path>", file=sys.stderr)
+            return 1
+        return cmd_verify_bib(args, cfg)
     return cmd_search(args, cfg)
 
 

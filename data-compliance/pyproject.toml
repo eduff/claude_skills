@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-compliance"
+version = "0.1.0"
+description = "Audit and safely remove restricted individual-level research data"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+# Enables pickle/parquet column inspection. Everything else works without them.
+tabular = ["pandas>=1.0", "pyarrow>=5.0"]
+rewrite = ["git-filter-repo>=2.38"]
+
+[project.scripts]
+data-compliance = "datacompliance.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+datacompliance = ["profiles/*.json"]

@@ -35,6 +35,45 @@ timestamp, and git commit. Enables instant traceability: `cat .provenance/foo.pn
 - `figutils/figutils.py` — drop-in library; symlink or copy into any project's
   `scripts/` directory. Provides `save_fig`, `read_provenance`, `provenance_path`.
 
+### `writing/` — prose style guide
+A reference list of AI writing patterns to avoid, applied when drafting or
+editing manuscript text, documentation, commit messages, and replies. Covers
+negative parallelism ("it's not X, it's Y"), em-dash overuse, preamble that
+announces the point instead of making it, reasoning leaks, invented compound
+labels, magic adverbs, signposted conclusions, and about forty others.
+
+- `writing/SKILL.md` — how to apply it, plus a short checklist for quick edits.
+- `writing/ai-tropes.md` — the full reference, from
+  [tropes.fyi](https://tropes.fyi) by [ossama.is](https://ossama.is).
+
+A project's own `CLAUDE.md` takes precedence where the two conflict: this
+guide constrains the shape of the prose, project rules constrain its content.
+
+### `data-compliance/` — restricted-data audit and removal skill
+A Claude Code skill + stdlib-only Python toolkit for finding and provably
+removing individual-level research data (UK Biobank participant IDs and
+similar) from servers, laptops, code and git history, while keeping code and
+aggregate results. Scan, inventory, git-history audit, regenerability check,
+manifest-based quarantine/delete with a destruction record, and in-place
+masking of transcripts, notebooks and shell histories.
+
+- `data-compliance/SKILL.md` — rules, workflow and post-clean-up verification
+  checklist (including Claude Code's own transcripts and scratch files).
+- `data-compliance/bin/data-compliance` — runs from the clone, no install.
+- `data-compliance/README.md` — full command reference; `tests/` — unittest suite.
+
+### `slides/` — editable PowerPoint talks from Python
+A Claude Code skill + small library for building talks on your own .pptx
+template: assertion titles, bold-lead bullets, figure-beside-text, cards,
+headline-number rows, equation and model panels, dashed placeholders and
+native (editable) charts. Sizes scale with the canvas, so one script works on
+16:9 PowerPoint and Keynote-export templates.
+
+- `slides/SKILL.md` — API table, design rules, figure conventions, checks.
+- `slides/slidekit.py` — `Deck` class (python-pptx, Pillow, lxml).
+- `slides/figstyle.py` — matplotlib talk style and box/arrow/badge primitives.
+- `slides/example.py` — demo deck using every helper; also a smoke test.
+
 ### `utils/` — misc helpers
 - `tech.py` — print the largest objects in the current Python namespace by
   in-memory size (quick memory-profiling snippet).

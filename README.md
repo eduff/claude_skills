@@ -62,6 +62,18 @@ masking of transcripts, notebooks and shell histories.
 - `data-compliance/bin/data-compliance` — runs from the clone, no install.
 - `data-compliance/README.md` — full command reference; `tests/` — unittest suite.
 
+### `slides/` — editable PowerPoint talks from Python
+A Claude Code skill + small library for building talks on your own .pptx
+template: assertion titles, bold-lead bullets, figure-beside-text, cards,
+headline-number rows, equation and model panels, dashed placeholders and
+native (editable) charts. Sizes scale with the canvas, so one script works on
+16:9 PowerPoint and Keynote-export templates.
+
+- `slides/SKILL.md` — API table, design rules, figure conventions, checks.
+- `slides/slidekit.py` — `Deck` class (python-pptx, Pillow, lxml).
+- `slides/figstyle.py` — matplotlib talk style and box/arrow/badge primitives.
+- `slides/example.py` — demo deck using every helper; also a smoke test.
+
 ### `utils/` — misc helpers
 - `tech.py` — print the largest objects in the current Python namespace by
   in-memory size (quick memory-profiling snippet).

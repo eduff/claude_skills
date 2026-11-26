@@ -132,3 +132,59 @@ def provenance_path(fig_path):
     """Return the expected .provenance file path for a figure (may not exist yet)."""
     fig_path = Path(fig_path).resolve()
     return fig_path.parent / '.provenance' / (fig_path.name + '.provenance')
+
+
+def archive_fig(fig_path, reason=None):
+    """Move a figure and its provenance file into <fig_dir>/_archived/.
+
+    The figure and its .provenance companion are moved atomically (rename) so
+    nothing is left half-done on error.  An ``archived:`` timestamp and optional
+    ``reason:`` line are appended to the provenance before the move.
+
+    Parameters
+    ----------
+    fig_path : str or Path — path to the figure file to archive.
+    reason   : str or None — optional note explaining why it was archived,
+               written into the provenance record.
+
+    Returns
+    -------
+    Path — new location of the archived figure.
+
+    Raises
+    ------
+    FileNotFoundError if the figure file does not exist.
+    """
+    import shutil
+    fig_path = Path(fig_path).resolve()
+    if not fig_path.exists():
+        raise FileNotFoundError(f"Figure not found: {fig_path}")
+
+    archive_dir = fig_path.parent / '_archived'
+    archive_dir.mkdir(exist_ok=True)
+    archive_prov_dir = archive_dir / '.provenance'
+    archive_prov_dir.mkdir(exist_ok=True)
+
+    src_prov = fig_path.parent / '.provenance' / (fig_path.name + '.provenance')
+    dst_fig  = archive_dir / fig_path.name
+    dst_prov = archive_prov_dir / (fig_path.name + '.provenance')
+
+    # Append archive metadata to provenance before moving
+    if src_prov.exists():
+        lines = src_prov.read_text().rstrip('\n').splitlines()
+    else:
+        lines = [f"figure:   {fig_path.name}", "script:   <unknown>"]
+    lines.append(f"archived: {datetime.datetime.now().isoformat(timespec='seconds')}")
+    if reason:
+        lines.append(f"reason:   {reason}")
+    updated_prov = '\n'.join(lines) + '\n'
+
+    # Write updated provenance to destination first, then move the figure
+    dst_prov.write_text(updated_prov)
+    shutil.move(str(fig_path), str(dst_fig))
+    # Remove old provenance only after figure is safely moved
+    if src_prov.exists():
+        src_prov.unlink()
+
+    print(f"Archived: {fig_path.name} → {dst_fig}")
+    return dst_fig

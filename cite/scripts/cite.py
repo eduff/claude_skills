@@ -159,7 +159,13 @@ def crossref_to_bibtex(msg):
 
 def zotero_find_by_doi(cfg, doi, msg=None):
     """Search Zotero library for a DOI. Returns list of matching top-level items,
-    ALL duplicates included, sorted so items with attachments come first."""
+    ALL duplicates included, sorted so items with attachments come first.
+
+    Zotero bug workaround: items saved via browser connector often lack a stored
+    DOI field, so DOI-exact matching misses the real item with attachments.
+    Strategies 1+2 do title-based searches and accept items even when their DOI
+    field is empty, as long as the title closely matches the Crossref record.
+    """
     if not cfg:
         return []
     headers = {"Zotero-API-Key": cfg["api_key"]}
@@ -167,46 +173,62 @@ def zotero_find_by_doi(cfg, doi, msg=None):
     seen_keys = set()
     hits = []
 
-    def _collect(items):
+    import re as _re
+
+    def _title_norm(t):
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ",
+                       _re.sub(r"<[^>]+>", " ", (t or "").lower()))).strip()
+
+    def _collect(items, crossref_title_norm=None, require_doi_match=False):
         for it in items:
             if it["key"] in seen_keys:
                 continue
             data = it.get("data", {})
             item_doi = (data.get("DOI") or "").lower().strip()
             extra = (data.get("extra") or "").lower()
-            if item_doi == doi_norm or doi_norm in extra:
+            doi_match = (item_doi == doi_norm or doi_norm in extra)
+            # Title match: accept if item has no DOI stored (Zotero connector bug)
+            # and the Zotero title closely matches the Crossref title.
+            title_match = False
+            if crossref_title_norm and not item_doi:
+                item_title_norm = _title_norm(data.get("title", ""))
+                # Accept if first 6 words agree (enough to avoid false positives)
+                cr_words = crossref_title_norm.split()[:6]
+                it_words = item_title_norm.split()[:6]
+                if cr_words and cr_words == it_words:
+                    title_match = True
+            if (doi_match or (title_match and not require_doi_match)):
                 seen_keys.add(it["key"])
                 hits.append(it)
 
-    # Strategy 1: title+year search — fast, works when DOI indexed correctly
     if msg is None:
         msg = crossref_by_doi(doi)
+
+    crossref_title_norm = None
     if msg:
-        import re as _re
         raw_title = (msg.get("title") or [""])[0]
-        clean_title = _re.sub(r"\s+", " ", _re.sub(r"<[^>]+>", " ", raw_title)).strip()
-        first_words = " ".join(clean_title.split()[:4])
+        crossref_title_norm = _title_norm(raw_title)
+
+    # Strategy 1: title+year search — fast, works when DOI indexed correctly
+    if msg:
+        first_words = " ".join(_title_norm((msg.get("title") or [""])[0]).split()[:4])
         year = crossref_year(msg)
         q1 = urllib.parse.quote(f"{first_words} {year or ''}".strip())
         url1 = (f"{ZOTERO_BASE}/users/{cfg['user_id']}/items/top"
                 f"?q={q1}&qmode=titleCreatorYear&limit=25&format=json")
         body1, _ = http_get(url1, headers=headers, timeout=20)
         if body1:
-            _collect(json.loads(body1))
+            _collect(json.loads(body1), crossref_title_norm=crossref_title_norm)
 
-    # Strategy 2: broader title-only search to catch duplicates not matched by year
+    # Strategy 2: broader title-only search — catches items saved without DOI
     if msg:
-        import re as _re2
-        raw_title = (msg.get("title") or [""])[0]
-        clean_title = _re2.sub(r"\s+", " ", _re2.sub(r"<[^>]+>", " ", raw_title)).strip()
-        # Use more words, no year — catches duplicates added in different years
-        first_words8 = " ".join(clean_title.split()[:8])
+        first_words8 = " ".join(_title_norm((msg.get("title") or [""])[0]).split()[:8])
         q2 = urllib.parse.quote(first_words8)
         url2 = (f"{ZOTERO_BASE}/users/{cfg['user_id']}/items/top"
                 f"?q={q2}&qmode=titleCreatorYear&limit=25&format=json")
         body2, _ = http_get(url2, headers=headers, timeout=20)
         if body2:
-            _collect(json.loads(body2))
+            _collect(json.loads(body2), crossref_title_norm=crossref_title_norm)
 
     if not hits:
         return []
@@ -266,23 +288,29 @@ def zotero_attachment_text(cfg, attachment):
     url = f"{ZOTERO_BASE}/users/{cfg['user_id']}/items/{key}/file"
     body, err = http_get(url, headers=headers)
     if not body:
-        # Cloud API failed (404 = file stored locally in Zotero, not synced to cloud).
-        # Try the Zotero desktop local HTTP server (only works when Zotero is running
-        # on the same machine, e.g. via a localhost tunnel or local deployment).
-        local_url = f"http://localhost:23119/zotero/items/{key}/attachment"
-        try:
-            local_body, _ = http_get(local_url, headers={}, timeout=3)
-            if local_body:
-                body = local_body
-            else:
-                link_mode = attachment["data"].get("linkMode", "")
-                reason = ("file-local-only (stored in Zotero desktop, not synced to cloud — "
-                          "open Zotero → right-click attachment → 'Manage Attachments' → sync, "
-                          "or export the PDF and drop it in the workspace)"
-                          if link_mode in ("imported_file", "imported_url")
-                          else "file-not-available")
-                return None, reason
-        except Exception:
+        # Try WebDAV (Koofr or other) if configured — Zotero stores files as {key}.zip
+        webdav_url = cfg.get("webdav_url", "").rstrip("/")
+        if webdav_url:
+            import base64
+            wuser = cfg.get("webdav_user", "")
+            wpass = cfg.get("webdav_password", "")
+            token = base64.b64encode(f"{wuser}:{wpass}".encode()).decode()
+            dav_file_url = f"{webdav_url}/{key}.zip"
+            dav_body, _ = http_get(dav_file_url,
+                                   headers={"Authorization": f"Basic {token}"},
+                                   timeout=20)
+            if dav_body:
+                body = dav_body
+        if not body:
+            # Try the Zotero desktop local HTTP server (only works when Zotero is running).
+            local_url = f"http://localhost:23119/zotero/items/{key}/attachment"
+            try:
+                local_body, _ = http_get(local_url, headers={}, timeout=3)
+                if local_body:
+                    body = local_body
+            except Exception:
+                pass
+        if not body:
             link_mode = attachment["data"].get("linkMode", "")
             reason = ("file-local-only (stored in Zotero desktop, not synced to cloud — "
                       "open Zotero → right-click attachment → 'Manage Attachments' → sync, "

@@ -71,7 +71,8 @@ native (editable) charts. Sizes scale with the canvas, so one script works on
 
 - `slides/SKILL.md` — API table, design rules, figure conventions, checks.
 - `slides/slidekit.py` — `Deck` class (python-pptx, Pillow, lxml).
-- `slides/figstyle.py` — matplotlib talk style and box/arrow/badge primitives.
+- `slides/figstyle.py` — matplotlib talk style, box/arrow/badge primitives and
+  diagram layouts: process `flow`, STROBE/CONSORT `cohort_flow`, causal `dag`.
 - `slides/example.py` — demo deck using every helper; also a smoke test.
 
 ### `utils/` — misc helpers

@@ -121,6 +121,37 @@ save(fig, 'pathways', outdir='figures')   # writes figures/pathways.png and .svg
 The `.svg` can be inserted instead of the PNG when the user wants to edit
 labels in PowerPoint (Insert → Pictures, then "Convert to Shape").
 
+### Diagrams
+
+Three standard layouts. Each builds its own figure, sized so the type stays in
+proportion to the shapes, and shrinks any label that does not fit its shape.
+Each returns `fig, ax`, so you can add to it before calling `save`.
+
+| Function | Classic form | Use for |
+|---|---|---|
+| `flow(steps, shape=, ncols=, side=)` | process / pipeline | study strategy, analysis pipeline, aims. `shape='circle'` (few big steps), `'box'` (wraps onto rows with `ncols`), `'chevron'` (phases, no arrows). `side=[...]` adds a panel for things that apply at every step (bias controls, QC). |
+| `cohort_flow(stages, exclusions)` | STROBE / CONSORT participant flow | how the analysed sample was reached: `[('Recruited', n), ...]` with `[(reason, n), ...]` per gap. Warns if a stage's n minus its exclusions does not equal the next. |
+| `dag(nodes, edges)` | causal DAG | mechanisms, confounding and bias paths. Nodes are `{key: (x, y, colour, label)}`, and edges take `rad`, `ls='--'` (assumed or unmeasured), `both=True` (correlation), `label=` or `badge=`. |
+| `key(ax, x, y, rows)` | badge legend | `(badge, heading, detail)` rows that explain numbered DAG edges. Widen `xlim` and the figure to make room. |
+
+```python
+fig, _ = flow([('Extract', 'purple'), ('Clean', 'red'), ('Fit', 'blue'), 'Validate'],
+              shape='box', ncols=2, side=['QC at every step'], side_title='Checks')
+save(fig, 'pipeline')
+```
+
+Rules for diagrams:
+- Every node colour follows the talk's colour roles (rule 5), and grey means context.
+- Use 3–6 steps in a process figure. More than that belongs on two slides.
+- Put a node's description in the slide text or the notes, not inside the node.
+- In a DAG, solid black edges are the effects being estimated, coloured edges
+  are bias paths, and dashed edges are assumed or unmeasured.
+- `cohort_flow` numbers must come from the analysis output. Never type them
+  in by hand, and act on the arithmetic warning.
+
+For layouts these don't cover, compose `box` / `arrow` / `badge` directly in
+equal-aspect axes, as the layout functions do.
+
 ## Check before handing over
 
 - Run the build and open the result. If LibreOffice is available, render a

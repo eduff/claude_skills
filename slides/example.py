@@ -39,10 +39,39 @@ def demo_figures():
     ax.legend(frameon=False)
     save(fig, 'demo_plot', FIG)
 
+    # Classic diagram layouts: process flow, STROBE participant flow, causal DAG
+    from figstyle import INK, cohort_flow, dag, flow, key
+    fig, _ = flow([('Build\nmodel', 'purple'), ('Anchor on\nknown effect', 'red'), ('Map\ninteractions', 'blue'),
+                   ('Validate', 'green'), ('Impact', 'grey')],
+                  side=['reverse causation', 'ascertainment', 'competing death', 'age-varying effects'],
+                  side_title='Bias controls')
+    save(fig, 'demo_flow', FIG)
+
+    fig, _ = cohort_flow([('Recruited', 10000), ('Eligible', 9500), ('Analysed', 8950)],
+                         [[('withdrew consent', 100), ('no genotype data', 400)],
+                          [('prevalent disease', 300), ('missing covariates', 250)]])
+    save(fig, 'demo_cohort', FIG)
+
+    nodes = {'A': (0, 6, 'red', 'Factor A'), 'B': (0, 0, 'blue', 'Factor B'),
+             'Y': (8, 3, '#333333', 'Outcome'), 'H': (4, -3, '#f2dede', 'Healthcare\ncontact', INK),
+             'D': (8, 8.5, '#f2dede', 'Death', INK)}
+    fig, ax = dag(nodes, [('A', 'Y'), ('B', 'Y'),
+                          ('H', 'B', {'color': 'alert', 'badge': 1, 'rad': -0.2}),
+                          ('H', 'Y', {'color': 'alert', 'badge': 1}),
+                          ('A', 'D', {'color': 'alert', 'badge': 2, 'rad': -0.15}),
+                          ('D', 'Y', {'color': 'alert', 'badge': 2}),
+                          ('A', 'B', {'both': True, 'ls': '--', 'label': 'r'})])
+    x0, x1 = ax.get_xlim()           # widen the canvas to make room for the badge key
+    fig.set_size_inches(fig.get_size_inches()[0] * (x1 - x0 + 8) / (x1 - x0), fig.get_size_inches()[1])
+    ax.set_xlim(x0, x1 + 8)
+    key(ax, x1 + 0.5, 8.5, [(1, 'Ascertainment', 'negative-control diagnoses'),
+                            (2, 'Competing death', 'refit with death as outcome')])
+    save(fig, 'demo_dag', FIG)
+
 
 def build(template=None, layout=None, keep=0, out='example_deck.pptx'):
     from slidekit import B, Deck, N
-    if not os.path.exists(os.path.join(FIG, 'demo_plot.png')):
+    if not os.path.exists(os.path.join(FIG, 'demo_dag.png')):
         demo_figures()
     deck = Deck(template, layout=layout, keep_slides=keep)
     F = lambda n: os.path.join(FIG, n + '.png')
@@ -58,6 +87,18 @@ def build(template=None, layout=None, keep=0, out='example_deck.pptx'):
 
     s = deck.new('Two factors can combine in two ways')
     deck.fig_full(s, F('demo_schematic'), caption='Caption in muted text under a full-width figure')
+
+    s = deck.new('Five steps, with bias controls at every one')
+    deck.fig_full(s, F('demo_flow'))
+
+    s = deck.new('8,950 of 10,000 participants entered the analysis')
+    deck.fig_right(s, F('demo_cohort'), [
+        [B('Exclusions: '), N('consent, genotype, prevalent disease')],
+        [B('Each box: '), N('n and reason, STROBE style')],
+    ], split=0.45 * W)
+
+    s = deck.new('Two bias paths can mimic an interaction')
+    deck.fig_full(s, F('demo_dag'))
 
     s = deck.new('Headline numbers and cards')
     deck.stat_row(s, TOP, [('14', 'risk factors', 'blue'), ('≈45%', 'potentially preventable', 'purple'),
